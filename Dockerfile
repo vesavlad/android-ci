@@ -2,85 +2,47 @@ FROM ubuntu:16.04
 
 MAINTAINER Vlad Vesa <vlad.vesa89@gmail.com>
 
-ENV ANDROID_HOME /opt/android-sdk
-
 # Get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_VERSION="3859397"
+ENV SDK_VERSION="3859397"
 
-WORKDIR /tmp
+ENV ANDROID_HOME "/sdk"
+ENV PATH "$PATH:${ANDROID_HOME}/tools:{$ANDROID_HOME}/platform-tools"
+ENV DEBIAN_FRONTEND noninteractive
 
-# Installing packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        wget \
-        lib32z1 \
-        lib32z1-dev \
-        libgmp-dev \
-        libmpc-dev \
-        libmpfr-dev \
-        libxslt-dev \
-        libxml2-dev \
-        unzip \
-        zip \
-        software-properties-common \
-        zlib1g-dev && \
-    apt-add-repository -y ppa:openjdk-r/ppa && \
-    apt-get install -y openjdk-8-jdk && \
-    rm -rf /var/lib/apt/lists/ && \
-    apt-get clean
+# installing dependencies
+RUN apt-get -qq update && \
+    apt-get install -qqy --no-install-recommends \
+      curl \
+      html2text \
+      openjdk-8-jdk \
+      libc6-i386 \
+      lib32stdc++6 \
+      lib32gcc1 \
+      lib32ncurses5 \
+      lib32z1 \
+      unzip \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Android SDK
-RUN wget -q -O tools.zip https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip && \
-    unzip -q tools.zip && \
-    rm -fr $ANDROID_HOME tools.zip && \
-    mkdir -p $ANDROID_HOME && \
-    mv tools $ANDROID_HOME/tools && \
+RUN rm -f /etc/ssl/certs/java/cacerts; \
+    /var/lib/dpkg/info/ca-certificates-java.postinst configure
 
-    mkdir -p $ANDROID_HOME/licenses && \
-    echo 8933bad161af4178b1185d1a37fbf41ea5269c55 > $ANDROID_HOME/licenses/android-sdk-license && \
-    echo 84831b9409646a918e30573bab4c9c91346d8abd > $ANDROID_HOME/licenses/android-sdk-preview-license && \
+# downloading sdk with specified version
+RUN curl -s https://dl.google.com/android/repository/sdk-tools-linux-${SDK_VERSION}.zip > /sdk.zip && \
+    unzip /sdk.zip -d $ANDROID_HOME && \
+    rm -v /sdk.zip
 
-    # Install Android components
-    cd $ANDROID_HOME && \
-    
-    echo "Install android-26" && \
-    tools/bin/sdkmanager "platforms;android-26" && \
+RUN mkdir -p $ANDROID_HOME/licenses/ \
+  && echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license \
+  && echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
 
-    echo "Install platform-tools" && \
-    tools/bin/sdkmanager "platform-tools" && \
-
-    echo "Install build-tools-26.0.1" && \
-    tools/bin/sdkmanager "build-tools;26.0.1" && \
-
-    echo "Install extra-android-m2repository" && \
-    tools/bin/sdkmanager "extras;android;m2repository" && \
-
-    echo "Install extra-google-google_play_services" && \
-    tools/bin/sdkmanager "extras;google;google_play_services" && \
-
-    echo "Install extra-google-m2repository" && \
-    tools/bin/sdkmanager "extras;google;m2repository" && \
-
-    echo "Install tools 26.0.2" && \
-    tools/bin/sdkmanager "tools" && \
-
-    echo "Install constraint layout 1.0.2" && \
-    tools/bin/sdkmanager "extras;m2repository;com;android;support;constraint;constraint-layout-solver;1.0.2" && \
-    tools/bin/sdkmanager "extras;m2repository;com;android;support;constraint;constraint-layout;1.0.2"
-
-
-# Add android commands to PATH
-ENV ANDROID_SDK_HOME $ANDROID_HOME
-ENV PATH $PATH:$ANDROID_SDK_HOME/tools:$ANDROID_SDK_HOME/platform-tools
+# install the provided packages inside the repo, this may vary based on android configuration need to run de build
+ADD packages.txt $ANDROID_HOME
+RUN mkdir -p /root/.android && \
+  touch /root/.android/repositories.cfg && \
+  ${ANDROID_HOME}/tools/bin/sdkmanager --update && \
+  (while [ 1 ]; do sleep 5; echo y; done) | ${ANDROID_HOME}/tools/bin/sdkmanager --package_file=/sdk/packages.txt
 
 # Export JAVA_HOME variable
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
-
-# Support Gradle
-ENV TERM dumb
-ENV JAVA_OPTS "-Xms512m -Xmx1536m"
-ENV GRADLE_OPTS "-XX:+UseG1GC -XX:MaxGCPauseMillis=1000"
 
 WORKDIR /project
