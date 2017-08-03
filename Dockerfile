@@ -12,6 +12,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # installing dependencies
 RUN apt-get -qq update && \
     apt-get install -qqy --no-install-recommends \
+      git \
       curl \
       html2text \
       openjdk-8-jdk \
